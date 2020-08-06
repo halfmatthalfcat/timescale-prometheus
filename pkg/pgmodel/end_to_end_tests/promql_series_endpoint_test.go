@@ -23,7 +23,7 @@ type seriesResponse struct {
 }
 
 type seriesTestCase struct {
-    name     string
+	name     string
 	matchers []string
 }
 
@@ -77,9 +77,9 @@ func TestPromQLSeriesEndpoint(t *testing.T) {
 	}
 
 	testCases := []struct {
-        name     string
-	    matchers []string
-    }{
+		name     string
+		matchers []string
+	}{
 		{
 			name:     "metric name matcher",
 			matchers: []string{"metric_1"},
@@ -101,7 +101,6 @@ func TestPromQLSeriesEndpoint(t *testing.T) {
 			matchers: []string{`nonexistant_metric_name`},
 		},
 	}
-
 
 	withDB(t, *testDatabase, func(db *pgxpool.Pool, t testing.TB) {
 		// Ingest test dataset.
@@ -128,25 +127,25 @@ func TestPromQLSeriesEndpoint(t *testing.T) {
 		start := time.Unix(startTime/1000, 0)
 		end := time.Unix(endTime/1000, 0)
 		var (
-            reqs []*http.Request
-            logs []string
-			req *http.Request
-			err error
+			reqs []*http.Request
+			logs []string
+			req  *http.Request
+			err  error
 		)
 		for _, c := range testCases {
 			req, err = genSeriesRequest(apiURL, c.matchers, start, end)
 			if err != nil {
 				t.Fatalf("unable to create PromQL series request: %s", err)
 			}
-            reqs = append(reqs, req)
-            logs = append(logs, fmt.Sprintf("get series for %s", c.name))
+			reqs = append(reqs, req)
+			logs = append(logs, fmt.Sprintf("get series for %s", c.name))
 
 			req, err = genSeriesNoTimeRequest(apiURL, c.matchers)
 			if err != nil {
 				t.Fatalf("unable to create PromQL series request: %s", err)
 			}
-            reqs = append(reqs, req)
-            logs = append(logs, fmt.Sprintf("get no time series for %s", c.name))
+			reqs = append(reqs, req)
+			logs = append(logs, fmt.Sprintf("get no time series for %s", c.name))
 		}
 		testMethod := testRequestConcurrent(reqs, logs, series, client, seriesResultComparator)
 		tester.Run("test series endpoint", testMethod)

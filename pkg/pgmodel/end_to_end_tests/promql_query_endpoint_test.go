@@ -80,7 +80,7 @@ func TestPromQLQueryEndpoint(t *testing.T) {
 
 	steps := []time.Duration{10 * time.Second, 30 * time.Second, time.Minute, 5 * time.Minute, 30 * time.Minute}
 
-    testCases := []struct {
+	testCases := []struct {
 		name  string
 		query string
 	}{
@@ -204,7 +204,7 @@ func TestPromQLQueryEndpoint(t *testing.T) {
 			name:  "delta",
 			query: `delta(metric_3[5m])`,
 		},
-        {
+		{
 			name:  "delta 1m",
 			query: `delta(metric_3[1m])`,
 		},
@@ -274,7 +274,6 @@ func TestPromQLQueryEndpoint(t *testing.T) {
 		},
 	}
 
-
 	withDB(t, *testDatabase, func(db *pgxpool.Pool, t testing.TB) {
 		// Ingest test dataset.
 		ingestQueryTestDataset(db, t, generateLargeTimeseries())
@@ -302,51 +301,51 @@ func TestPromQLQueryEndpoint(t *testing.T) {
 		start := time.Unix(startTime/1000, 0)
 		end := time.Unix(endTime/1000, 0)
 		var (
-            reqs []*http.Request
-            logs []string
-			req *http.Request
-			err error
+			reqs []*http.Request
+			logs []string
+			req  *http.Request
+			err  error
 		)
 		for _, c := range testCases {
 			req, err = genInstantRequest(apiURL, c.query, start)
 			if err != nil {
 				t.Fatalf("unable to create PromQL query request: %s", err)
 			}
-            reqs = append(reqs, req)
-            logs = append(logs, fmt.Sprintf("%s (instant query, ts=start)", c.name))
+			reqs = append(reqs, req)
+			logs = append(logs, fmt.Sprintf("%s (instant query, ts=start)", c.name))
 
-            // Instant Query, 30 seconds after start
-            req, err = genInstantRequest(apiURL, c.query, start.Add(time.Second*30))
+			// Instant Query, 30 seconds after start
+			req, err = genInstantRequest(apiURL, c.query, start.Add(time.Second*30))
 			if err != nil {
 				t.Fatalf("unable to create PromQL query request: %s", err)
 			}
-            reqs = append(reqs, req)
-            logs = append(logs, fmt.Sprintf("%s (instant query, ts=start+30sec)", c.name))
+			reqs = append(reqs, req)
+			logs = append(logs, fmt.Sprintf("%s (instant query, ts=start+30sec)", c.name))
 		}
 		testMethod := testRequestConcurrent(reqs, logs, instantQuery, client, queryResultComparator)
 		tester.Run("test instant query endpoint", testMethod)
 
-        reqs = nil
-        logs = nil
+		reqs = nil
+		logs = nil
 		for _, c := range testCases {
 			for _, step := range steps {
 				req, err = genRangeRequest(apiURL, c.query, start, end.Add(10*time.Minute), step)
 				if err != nil {
 					t.Fatalf("unable to create PromQL range query request: %s", err)
 				}
-                reqs = append(reqs, req)
-                logs = append(logs, fmt.Sprintf("%s (range query, step size: %s)", c.name, step.String()))
+				reqs = append(reqs, req)
+				logs = append(logs, fmt.Sprintf("%s (range query, step size: %s)", c.name, step.String()))
 			}
 
-            //range that straddles the end of the generated data
-            for _, step := range steps {
+			//range that straddles the end of the generated data
+			for _, step := range steps {
 				req, err = genRangeRequest(apiURL, c.query, end, end.Add(time.Minute*10), step)
 				if err != nil {
 					t.Fatalf("unable to create PromQL range query request: %s", err)
 				}
-                reqs = append(reqs, req)
-                logs = append(logs, fmt.Sprintf("%s (range query, step size: %s, straddles_end)", c.name, step.String()))
-            }
+				reqs = append(reqs, req)
+				logs = append(logs, fmt.Sprintf("%s (range query, step size: %s, straddles_end)", c.name, step.String()))
+			}
 		}
 		testMethod = testRequestConcurrent(reqs, logs, rangeQuery, client, queryResultComparator)
 		tester.Run("test range query endpoint", testMethod)
