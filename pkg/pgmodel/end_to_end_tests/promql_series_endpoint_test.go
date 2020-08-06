@@ -3,7 +3,6 @@ package end_to_end_tests
 import (
 	"encoding/json"
 	"fmt"
-    "math/rand"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -72,9 +71,15 @@ func genSeriesNoTimeRequest(apiURL string, matchers []string) (*http.Request, er
 	)
 }
 
-func getSeries(num int) ([]seriesTestCase) {
-    numCases := 5
-	testCases := []seriesTestCase {
+func TestPromQLSeriesEndpoint(t *testing.T) {
+	if testing.Short() || !*useDocker {
+		t.Skip("skipping integration test")
+	}
+
+	testCases := []struct {
+        name     string
+	    matchers []string
+    }{
 		{
 			name:     "metric name matcher",
 			matchers: []string{"metric_1"},
@@ -97,24 +102,6 @@ func getSeries(num int) ([]seriesTestCase) {
 		},
 	}
 
-    if num == 0 {
-        return testCases
-    }
-
-    samples := make([]seriesTestCase, num)
-    for i := range samples {
-        samples[i] = testCases[rand.Intn(numCases)]
-    }
-
-    return samples
-}
-
-func TestPromQLSeriesEndpoint(t *testing.T) {
-	if testing.Short() || !*useDocker {
-		t.Skip("skipping integration test")
-	}
-
-    testCases := getSeries(0)
 
 	withDB(t, *testDatabase, func(db *pgxpool.Pool, t testing.TB) {
 		// Ingest test dataset.
@@ -141,24 +128,28 @@ func TestPromQLSeriesEndpoint(t *testing.T) {
 		start := time.Unix(startTime/1000, 0)
 		end := time.Unix(endTime/1000, 0)
 		var (
+            reqs []*http.Request
+            logs []string
 			req *http.Request
 			err error
 		)
 		for _, c := range testCases {
 			req, err = genSeriesRequest(apiURL, c.matchers, start, end)
 			if err != nil {
-				t.Fatalf("unable to create PromQL query request: %s", err)
+				t.Fatalf("unable to create PromQL series request: %s", err)
 			}
-			testMethod := testRequest(req, series, client, seriesResultComparator)
-			tester.Run(fmt.Sprintf("%s (instant query)", c.name), testMethod)
+            reqs = append(reqs, req)
+            logs = append(logs, fmt.Sprintf("get series for %s", c.name))
 
 			req, err = genSeriesNoTimeRequest(apiURL, c.matchers)
 			if err != nil {
-				t.Fatalf("unable to create PromQL query request: %s", err)
+				t.Fatalf("unable to create PromQL series request: %s", err)
 			}
-			testMethod = testRequest(req, series, client, seriesResultComparator)
-			tester.Run(fmt.Sprintf("%s (instant query)", c.name), testMethod)
+            reqs = append(reqs, req)
+            logs = append(logs, fmt.Sprintf("get no time series for %s", c.name))
 		}
+		testMethod := testRequestConcurrent(reqs, logs, series, client, seriesResultComparator)
+		tester.Run("test series endpoint", testMethod)
 	})
 }
 

@@ -80,6 +80,8 @@ func TestPromQLLabelEndpoint(t *testing.T) {
 		client := &http.Client{Timeout: 10 * time.Second}
 
 		var (
+            reqs []*http.Request
+            logs []string
 			req *http.Request
 			err error
 		)
@@ -96,14 +98,17 @@ func TestPromQLLabelEndpoint(t *testing.T) {
 			t.Fatalf("could not get label names from querier")
 		}
 		labelNames = append(labelNames, "unexisting_label")
+
 		for _, label := range labelNames {
 			req, err = getLabelValuesRequest(apiURL, label)
 			if err != nil {
 				t.Fatalf("unable to create PromQL label values request: %v", err)
 			}
-			testMethod := testRequest(req, router, client, labelsResultComparator)
-			tester.Run(fmt.Sprintf("get label values for %s", label), testMethod)
+            reqs = append(reqs, req)
+            logs = append(logs, fmt.Sprintf("get label values for %s", label))
 		}
+		testMethod = testRequestConcurrent(reqs, logs, router, client, labelsResultComparator)
+	    tester.Run("test label endpoint", testMethod)
 	})
 }
 
