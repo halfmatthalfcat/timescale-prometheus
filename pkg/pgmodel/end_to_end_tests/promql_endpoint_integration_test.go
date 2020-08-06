@@ -91,7 +91,7 @@ func testRequestConcurrent(reqs []*http.Request, logs []string, handler http.Han
         
 		        err = comparator(promContent, tsContent)
 		        if err != nil {
-			        t.Fatal(err)
+                    t.Fatalf("%s gives %s", log, err)
 		        }
             }(logs[i])
         }
