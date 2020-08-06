@@ -60,9 +60,9 @@ func testRequestConcurrent(reqs []*http.Request, logs []string, handler http.Han
 	return func(t *testing.T) {
 
 		wg := sync.WaitGroup{}
-		for i, req := range reqs {
+		for i, r := range reqs {
 			wg.Add(1)
-			go func(log string) {
+			go func(req *http.Request, log string) {
 				defer wg.Done()
 
 				t.Log(log)
@@ -93,7 +93,7 @@ func testRequestConcurrent(reqs []*http.Request, logs []string, handler http.Han
 				if err != nil {
 					t.Fatalf("%s gives %s", log, err)
 				}
-			}(logs[i])
+			}(r, logs[i])
 		}
 		wg.Wait()
 	}
