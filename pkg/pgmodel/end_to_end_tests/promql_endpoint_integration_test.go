@@ -2,6 +2,7 @@ package end_to_end_tests
 
 import (
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -59,10 +60,18 @@ func testRequest(req *http.Request, handler http.Handler, client *http.Client, c
 func testRequestConcurrent(reqs []*http.Request, logs []string, handler http.Handler, client *http.Client, comparator resultComparator) func(*testing.T) {
 	return func(t *testing.T) {
 
+		perm := rand.Perm(len(reqs))
+
 		wg := sync.WaitGroup{}
-		for i, r := range reqs {
+
+		for i := 0; i < len(perm); i++ {
+			req := reqs[perm[i]]
+			log := logs[perm[i]]
+			if i%5 == 0 {
+				wg.Wait()
+			}
 			wg.Add(1)
-			go func(req *http.Request, log string) {
+			go func() {
 				defer wg.Done()
 
 				t.Log(log)
@@ -93,7 +102,7 @@ func testRequestConcurrent(reqs []*http.Request, logs []string, handler http.Han
 				if err != nil {
 					t.Fatalf("%s gives %s", log, err)
 				}
-			}(r, logs[i])
+			}()
 		}
 		wg.Wait()
 	}
