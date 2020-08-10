@@ -2,11 +2,9 @@ package pgmodel
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
@@ -31,34 +29,15 @@ type pgxSeriesSet struct {
 	querier labelQuerier
 }
 
-type timescaleRow struct {
-	labelIds []int64
-	times    pgtype.TimestamptzArray
-	values   pgtype.Float8Array
-	err      error
-}
-
 // pgxSeriesSet must implement storage.SeriesSet
 var _ storage.SeriesSet = (*pgxSeriesSet)(nil)
 
-func buildSeriesSet(rows []pgx.Rows, sortSeries bool, querier *pgxQuerier) (storage.SeriesSet, storage.Warnings, error) {
-	seriesSet := &pgxSeriesSet{
-		rows:    make([]timescaleRow, 0, len(rows)),
+func buildSeriesSet(rows []timescaleRow, sortSeries bool, querier *pgxQuerier) (storage.SeriesSet, storage.Warnings, error) {
+	return &pgxSeriesSet{
+		rows:    rows,
 		querier: querier,
 		rowIdx:  -1,
-	}
-	for i := range rows {
-		for rows[i].Next() {
-			var outRow timescaleRow
-			outRow.err = rows[i].Scan(&outRow.labelIds, &outRow.times, &outRow.values)
-			if outRow.err != nil {
-				log.Error("err", outRow.err)
-			}
-			seriesSet.rows = append(seriesSet.rows, outRow)
-		}
-		rows[i].Close()
-	}
-	return seriesSet, nil, nil
+	}, nil, nil
 }
 
 // Next forwards the internal cursor to next storage.Series
@@ -172,16 +151,7 @@ func (p *pgxSeriesIterator) Seek(t int64) bool {
 
 // getTs returns a Unix timestamp in milliseconds.
 func (p *pgxSeriesIterator) getTs() int64 {
-	v := p.times.Elements[p.cur]
-
-	switch v.InfinityModifier {
-	case pgtype.NegativeInfinity:
-		return math.MinInt64
-	case pgtype.Infinity:
-		return math.MaxInt64
-	default:
-		return v.Time.UnixNano() / 1e6
-	}
+	return timestamptzToMs(p.times.Elements[p.cur])
 }
 
 func (p *pgxSeriesIterator) getVal() float64 {
