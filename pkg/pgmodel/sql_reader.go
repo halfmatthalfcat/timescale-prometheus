@@ -319,6 +319,8 @@ func (q *pgxQuerier) getResultRows(startTimestamp int64, endTimestamp int64, hin
 		}
 		filter.metric = tableName
 		sqlQuery = buildTimeseriesBySeriesIDQuery(filter, series[i])
+		// FIXME this seems like it could _easily_ self-deadlock if we have
+		//       more tables than connections
 		rows, err = q.conn.Query(context.Background(), sqlQuery)
 		results = append(results, rows)
 		if err != nil {
