@@ -89,6 +89,9 @@ func (q *pgxQuerier) Select(mint int64, maxt int64, sortSeries bool, hints *stor
 	rows, topNode, err := q.getResultRows(mint, maxt, hints, path, ms)
 
 	if err != nil {
+		for _, row := range rows {
+			row.Close()
+		}
 		return nil, nil, nil, err
 	}
 
@@ -287,12 +290,12 @@ func (q *pgxQuerier) getResultRows(startTimestamp int64, endTimestamp int64, hin
 
 	sqlQuery := buildMetricNameSeriesIDQuery(cases)
 	rows, err := q.conn.Query(context.Background(), sqlQuery, values...)
+	defer rows.Close()
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	defer rows.Close()
 	metrics, series, err := getSeriesPerMetric(rows)
 
 	if err != nil {
@@ -309,17 +312,21 @@ func (q *pgxQuerier) getResultRows(startTimestamp int64, endTimestamp int64, hin
 				continue
 			}
 
+			for _, row := range results {
+				row.Close()
+			}
 			return nil, nil, err
 		}
 		filter.metric = tableName
 		sqlQuery = buildTimeseriesBySeriesIDQuery(filter, series[i])
 		rows, err = q.conn.Query(context.Background(), sqlQuery)
-
+		results = append(results, rows)
 		if err != nil {
+			for _, row := range results {
+				row.Close()
+			}
 			return nil, nil, err
 		}
-
-		results = append(results, rows)
 	}
 
 	return results, nil, nil
@@ -347,6 +354,7 @@ func (q *pgxQuerier) querySingleMetric(metric string, filter metricTimeRangeFilt
 		// If we are getting undefined table error, it means the query
 		// is looking for a metric which doesn't exist in the system.
 		if e, ok := err.(*pgconn.PgError); !ok || e.Code != pgerrcode.UndefinedTable {
+			rows.Close()
 			return nil, nil, err
 		}
 	}
