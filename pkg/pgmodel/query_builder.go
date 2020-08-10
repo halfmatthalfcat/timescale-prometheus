@@ -172,13 +172,6 @@ func (c *clauseBuilder) build() ([]string, []interface{}) {
 	return c.clauses, c.args
 }
 
-func buildSeriesSet(rows []pgx.Rows, sortSeries bool, querier *pgxQuerier) (storage.SeriesSet, storage.Warnings, error) {
-	return &pgxSeriesSet{
-		rows:    rows,
-		querier: querier,
-	}, nil, nil
-}
-
 func buildTimeSeries(rows pgx.Rows, q *pgxQuerier) ([]*prompb.TimeSeries, error) {
 	results := make([]*prompb.TimeSeries, 0)
 

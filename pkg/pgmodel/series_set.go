@@ -26,28 +26,52 @@ var (
 // pgxSeriesSet implements storage.SeriesSet.
 type pgxSeriesSet struct {
 	rowIdx  int
-	rows    []pgx.Rows
+	rows    []timescaleRow
 	err     error
 	querier labelQuerier
 }
 
+type timescaleRow struct {
+	labelIds []int64
+	times    pgtype.TimestamptzArray
+	values   pgtype.Float8Array
+	err      error
+}
+
 // pgxSeriesSet must implement storage.SeriesSet
 var _ storage.SeriesSet = (*pgxSeriesSet)(nil)
+
+func buildSeriesSet(rows []pgx.Rows, sortSeries bool, querier *pgxQuerier) (storage.SeriesSet, storage.Warnings, error) {
+	seriesSet := &pgxSeriesSet{
+		rows:    make([]timescaleRow, 0, len(rows)),
+		querier: querier,
+		rowIdx:  -1,
+	}
+	for i := range rows {
+		for rows[i].Next() {
+			var outRow timescaleRow
+			outRow.err = rows[i].Scan(&outRow.labelIds, &outRow.times, &outRow.values)
+			if outRow.err != nil {
+				log.Error("err", outRow.err)
+			}
+			seriesSet.rows = append(seriesSet.rows, outRow)
+		}
+		rows[i].Close()
+	}
+	return seriesSet, nil, nil
+}
 
 // Next forwards the internal cursor to next storage.Series
 func (p *pgxSeriesSet) Next() bool {
 	if p.rowIdx >= len(p.rows) {
 		return false
 	}
-	for !p.rows[p.rowIdx].Next() {
-		if p.err == nil {
-			p.err = p.rows[p.rowIdx].Err()
-		}
-		p.rows[p.rowIdx].Close()
-		p.rowIdx++
-		if p.rowIdx >= len(p.rows) {
-			return false
-		}
+	p.rowIdx += 1
+	if p.rowIdx >= len(p.rows) {
+		return false
+	}
+	if p.err == nil {
+		p.err = p.rows[p.rowIdx].err
 	}
 	return true
 }
@@ -60,24 +84,25 @@ func (p *pgxSeriesSet) At() storage.Series {
 		return nil
 	}
 
-	// Setting invalid data until we confirm that all data is valid.
-	p.err = errInvalidData
+	row := &p.rows[p.rowIdx]
 
-	ps := &pgxSeries{}
-	var labelIds []int64
-	if err := p.rows[p.rowIdx].Scan(&labelIds, &ps.times, &ps.values); err != nil {
-		log.Error("err", err)
+	if row.err != nil {
+		p.err = row.err
+		return nil
+	}
+	if len(row.times.Elements) != len(row.values.Elements) {
 		return nil
 	}
 
-	if len(ps.times.Elements) != len(ps.values.Elements) {
-		return nil
+	ps := &pgxSeries{
+		times:  row.times,
+		values: row.values,
 	}
 
 	// this should pretty much always be non-empty due to __name__, but it
 	// costs little to check here
-	if len(labelIds) != 0 {
-		lls, err := p.querier.getLabelsForIds(labelIds)
+	if len(row.labelIds) != 0 {
+		lls, err := p.querier.getLabelsForIds(row.labelIds)
 		if err != nil {
 			log.Error("err", err)
 			return nil
@@ -86,7 +111,6 @@ func (p *pgxSeriesSet) At() storage.Series {
 		ps.labels = lls
 	}
 
-	p.err = nil
 	return ps
 }
 
