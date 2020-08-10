@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 	"github.com/prometheus/prometheus/pkg/labels"
 )
 
@@ -393,17 +392,36 @@ func genRows(count int) [][][]byte {
 	return result
 }
 
-func genPgxRows(m [][]seriesSetRow, err error) []pgx.Rows {
-	result := make([]pgx.Rows, len(m))
+func genPgxRows(m [][]seriesSetRow, err error) []timescaleRow {
+	var result []timescaleRow
 
-	for i := range result {
-		result[i] = &mockPgxRows{
-			results: m[i],
-			err:     err,
+	for _, mm := range m {
+		for _, r := range mm {
+			result = append(result, timescaleRow{
+				labelIds: r.labels,
+				times:    toTimestampTzArray(r.timestamps),
+				values:   toFloat8Array(r.values),
+			})
 		}
 	}
 
 	return result
+}
+
+func toTimestampTzArray(times []pgtype.Timestamptz) pgtype.TimestamptzArray {
+	return pgtype.TimestamptzArray{
+		Elements:   times,
+		Dimensions: nil,
+		Status:     pgtype.Present,
+	}
+}
+
+func toFloat8Array(values []pgtype.Float8) pgtype.Float8Array {
+	return pgtype.Float8Array{
+		Elements:   values,
+		Dimensions: nil,
+		Status:     pgtype.Present,
+	}
 }
 
 func genSeries(labels []int64, ts []pgtype.Timestamptz, vs []pgtype.Float8) seriesSetRow {
