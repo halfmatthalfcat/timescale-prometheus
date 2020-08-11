@@ -32,7 +32,7 @@ type pgxSeriesSet struct {
 // pgxSeriesSet must implement storage.SeriesSet
 var _ storage.SeriesSet = (*pgxSeriesSet)(nil)
 
-func buildSeriesSet(rows []timescaleRow, sortSeries bool, querier *pgxQuerier) (storage.SeriesSet, storage.Warnings, error) {
+func buildSeriesSet(rows []timescaleRow, querier labelQuerier) (storage.SeriesSet, storage.Warnings, error) {
 	return &pgxSeriesSet{
 		rows:    rows,
 		querier: querier,
@@ -55,9 +55,7 @@ func (p *pgxSeriesSet) Next() bool {
 	return true
 }
 
-// At returns the current storage.Series. It expects to get rows to contain
-// four arrays in binary format which it attempts to deserialize into specific types.
-// It also expects that the first two and second two arrays are the same length.
+// At returns the current storage.Series.
 func (p *pgxSeriesSet) At() storage.Series {
 	if p.rowIdx >= len(p.rows) {
 		return nil
@@ -66,10 +64,10 @@ func (p *pgxSeriesSet) At() storage.Series {
 	row := &p.rows[p.rowIdx]
 
 	if row.err != nil {
-		p.err = row.err
 		return nil
 	}
 	if len(row.times.Elements) != len(row.values.Elements) {
+		p.err = errInvalidData
 		return nil
 	}
 

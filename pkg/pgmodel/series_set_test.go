@@ -117,6 +117,8 @@ type seriesSetRow struct {
 	values     []pgtype.Float8
 }
 
+var arbitraryErr = fmt.Errorf("arbitrary err")
+
 func TestPgxSeriesSet(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -130,9 +132,9 @@ func TestPgxSeriesSet(t *testing.T) {
 	}{
 		{
 			name:     "invalid row",
-			rowErr:   fmt.Errorf("arbitrary err"),
+			rowErr:   arbitraryErr,
 			input:    [][]seriesSetRow{{seriesSetRow{}}},
-			err:      errInvalidData,
+			err:      arbitraryErr,
 			rowCount: 1,
 		},
 		{
@@ -238,7 +240,7 @@ func TestPgxSeriesSet(t *testing.T) {
 				c.input = [][]seriesSetRow{{
 					genSeries(labels, c.ts, c.vs)}}
 			}
-			p := pgxSeriesSet{rows: genPgxRows(c.input, c.rowErr), querier: mapQuerier{labelMapping}}
+			p, _, _ := buildSeriesSet(genPgxRows(c.input, c.rowErr), mapQuerier{labelMapping})
 
 			for c.rowCount > 0 {
 				c.rowCount--
@@ -401,6 +403,7 @@ func genPgxRows(m [][]seriesSetRow, err error) []timescaleRow {
 				labelIds: r.labels,
 				times:    toTimestampTzArray(r.timestamps),
 				values:   toFloat8Array(r.values),
+				err:      err,
 			})
 		}
 	}

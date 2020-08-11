@@ -93,7 +93,7 @@ func (q *pgxQuerier) Select(mint int64, maxt int64, sortSeries bool, hints *stor
 		return nil, nil, nil, err
 	}
 
-	ss, warn, err := buildSeriesSet(rows, sortSeries, q)
+	ss, warn, err := buildSeriesSet(rows, q)
 	return ss, topNode, warn, err
 }
 
